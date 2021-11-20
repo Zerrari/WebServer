@@ -55,7 +55,7 @@ int main( int argc, char* argv[] )
     struct kevent changes[USER_LIMIT];
     struct kevent events[USER_LIMIT];
 
-    HTTP http[100];
+    //HTTP http[100];
 
     EV_SET(changes,listenfd,EVFILT_READ,EV_ADD | EV_ENABLE | EV_ERROR,0,0,&listenfd);
 
@@ -117,8 +117,10 @@ int main( int argc, char* argv[] )
             else if (events[i].filter & EVFILT_READ) {
                 printf("test\n");
                 int connfd = events[i].ident;
-                http[0].init(connfd);
-                http[0].recv_message();
+                HTTP http(connfd);
+                http.recv_message();
+                //http[0].init(connfd);
+                //http[0].recv_message();
             }
         }
     }

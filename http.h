@@ -13,9 +13,8 @@ public:
     static const char* szret[];
 
 public:
-    HTTP(){
-        sockfd = -1;
-        buffer = NULL;
+    HTTP(int _sockfd):sockfd(_sockfd){
+        buffer = new char[BUFFER_SIZE];
         c_state = CHECK_STATE_REQUESTLINE;
         l_status = LINE_OPEN;
         h_code = NO_REQUEST;
@@ -24,9 +23,9 @@ public:
         start_line = 0;
     }
     ~HTTP(){
-        if (buffer) {
+        //if (buffer) {
             delete [] buffer;
-        }
+        //}
     }
 
 private:
