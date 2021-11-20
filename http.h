@@ -3,6 +3,8 @@
 
 #define BUFFER_SIZE 4096
 
+#include <cstdio>
+
 class HTTP{
 public:
     enum CHECK_STATE { CHECK_STATE_REQUESTLINE = 0, CHECK_STATE_HEADER, CHECK_STATE_CONTENT };
@@ -11,8 +13,9 @@ public:
     static const char* szret[];
 
 public:
-    HTTP(int _sockfd):sockfd(_sockfd){
-        buffer = new char[BUFFER_SIZE]();
+    HTTP(){
+        sockfd = -1;
+        buffer = NULL;
         c_state = CHECK_STATE_REQUESTLINE;
         l_status = LINE_OPEN;
         h_code = NO_REQUEST;
@@ -21,7 +24,9 @@ public:
         start_line = 0;
     }
     ~HTTP(){
-        delete [] buffer;
+        if (buffer) {
+            delete [] buffer;
+        }
     }
 
 private:
@@ -32,6 +37,10 @@ private:
 public:
     HTTP_CODE parse_content();
     void recv_message();
+    void init(int _sockfd) {
+        sockfd = _sockfd;
+        buffer = new char[BUFFER_SIZE]();
+    }
 
 private:
     char* buffer;
