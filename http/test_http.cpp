@@ -36,7 +36,7 @@ int main(int argc,char* argv[])
     }
     else {
         HTTP http(fd);
-        http.recv_message();
+        http.process();
     }
     
     close( listenfd );

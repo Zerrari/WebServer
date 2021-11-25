@@ -118,7 +118,7 @@ int main( int argc, char* argv[] )
                 printf("test\n");
                 int connfd = events[i].ident;
                 HTTP http(connfd);
-                http.recv_message();
+                http.process();
                 //http[0].init(connfd);
                 //http[0].recv_message();
             }

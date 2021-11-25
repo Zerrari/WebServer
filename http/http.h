@@ -11,7 +11,7 @@ public:
     static const char* szret[];
 
 public:
-    HTTP(int _sockfd):sockfd(_sockfd){
+    HTTP():sockfd(){
         buffer = new char[BUFFER_SIZE];
         c_state = CHECK_STATE_REQUESTLINE;
         l_status = LINE_OPEN;
@@ -19,6 +19,7 @@ public:
         check_index = 0;
         read_index = 0;
         start_line = 0;
+        sockfd = -1;
     }
     ~HTTP(){
             delete [] buffer;
@@ -31,11 +32,10 @@ private:
 
 public:
     HTTP_CODE parse_content();
-    void recv_message();
     void init(int _sockfd) {
         sockfd = _sockfd;
-        buffer = new char[BUFFER_SIZE]();
     }
+    void process();
 
 private:
     char* buffer;
@@ -50,4 +50,3 @@ private:
 
 
 #endif
-

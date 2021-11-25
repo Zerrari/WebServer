@@ -186,7 +186,7 @@ HTTP::HTTP_CODE HTTP::parse_content()
     }
 }
 
-void HTTP::recv_message()
+void HTTP::process()
 {
     memset(buffer, '\0', BUFFER_SIZE);
     int data_read = 0;
