@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <exception>
 #include <pthread.h>
+#include <iostream>
 #include "locker.h"
 
 template<typename T>
@@ -41,7 +42,7 @@ private:
 
 template<typename T>
 threadpool<T>::threadpool(int thread_number, int max_requests) : 
-        m_thread_number(thread_number), m_max_requests(max_requests), m_stop(false), m_threads(NULL)
+        m_thread_number(thread_number), m_max_requests(max_requests), m_threads(NULL),m_stop(false)
 {
     // 如果给定线程数或者请求数不符合要求，抛出异常
     if ((thread_number <= 0) || (max_requests <= 0))

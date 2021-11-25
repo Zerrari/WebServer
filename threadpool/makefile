@@ -2,13 +2,13 @@ CXX ?= g++
 
 CXXFLAGS = -Wall -O2
 
-all: test_threadpool
+all: threadpool
 
-test_http:	test_threadpool.cpp threadpool.cpp 
-	$(CXX) $^ $(CXXFLAGS) -o test_threadpool
+threadpool:	test_threadpool.cpp 
+	$(CXX) $^ $(CXXFLAGS) -o threadpool
 
 
 clean:
-	rm test_threadpool
+	rm threadpool
 
 

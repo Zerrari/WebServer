@@ -5,13 +5,14 @@
 #include <pthread.h>
 #include <string>
 #include <semaphore.h>
+#include <sys/fcntl.h>
 
 class sem
 {
 public:
     sem(std::string _name = "sem"):name(_name)
     {
-        if ((m_sem = sem_open(name.c_str(),O_EXCL)) == SEM_FAILED) {
+        if ((m_sem = sem_open(name.c_str(),O_CREAT,0644,0)) == SEM_FAILED) {
             throw std::exception();
         }
     }
