@@ -1,4 +1,5 @@
 #include "http.h"
+#include "../kqueue/kqueue.h"
 
 #include <sys/event.h>
 #include <sys/time.h>
@@ -24,7 +25,6 @@ HTTP::LINE_STATUS HTTP::parse_line()
     char temp;
     for ( ; check_index < read_index; ++check_index )
     {
-        //printf("test\n");
         temp = buffer[check_index];
         if (temp == '\r')
         {
@@ -196,6 +196,7 @@ void HTTP::process()
         if (data_read == -1)
         {
             printf("reading failed\n");
+            close_connect();
             break;
         }
         else if (data_read == 0)
@@ -222,4 +223,9 @@ void HTTP::process()
         }
     }
     close(sockfd);
+}
+
+void HTTP::close_connect(){
+    close(sockfd);
+    removefd(changes,flags,sockfd);
 }

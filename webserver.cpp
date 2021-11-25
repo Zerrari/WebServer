@@ -1,6 +1,7 @@
 #include "http/http.h"
 #include "threadpool/threadpool.h"
 #include "sock/sock.h"
+#include "kqueue/kqueue.h"
 
 #include <sys/types.h>
 #include <sys/event.h>
@@ -67,10 +68,6 @@ int main(int argc,char* argv[])
         return 1;
     }
 
-    HTTP* users = new HTTP[MAX_FD];
-    assert(users);
-    int user_count = 0;
-
     // create kqueue
     int kq = kqueue();
 
@@ -80,10 +77,21 @@ int main(int argc,char* argv[])
 
     struct kevent changes[MAX_EVENT_NUMBER];
     struct kevent events[MAX_EVENT_NUMBER];
+    int flags[MAX_EVENT_NUMBER];
+    for (int i = 0; i < MAX_EVENT_NUMBER; ++i) {
+        flags[i] = -1;
+    }
+
+    HTTP* users = new HTTP[MAX_FD];
+    assert(users);
+    int user_count = 0;
+
 
     EV_SET(changes,listenfd,EVFILT_READ,EV_ADD | EV_ENABLE | EV_ERROR,0,0,&listenfd);
 
     addsig(SIGPIPE,SIG_IGN);
+
+    flags[0] = listenfd;
 
     user_count = 1;
 
@@ -111,7 +119,8 @@ int main(int argc,char* argv[])
                 struct sockaddr_in client_address;
                 socklen_t client_addrlength = sizeof( client_address );
                 int connfd = accept(listenfd, (struct sockaddr*)&client_address, &client_addrlength);
-                EV_SET(changes+user_count,connfd,EVFILT_READ,EV_ADD | EV_ENABLE | EV_ERROR,0,0,&connfd);
+                addfd(changes,flags,connfd);
+                users[connfd].init(connfd,changes,flags);
                 ++user_count;
             }
             else if (events[i].filter & EVFILT_READ) {
@@ -122,7 +131,6 @@ int main(int argc,char* argv[])
             {
             }
         }
-
     }
 
     printf( "close fds\n" );
