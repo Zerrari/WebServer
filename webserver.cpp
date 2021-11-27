@@ -132,7 +132,7 @@ int main(int argc,char* argv[])
                 if (kevent(kq, &newevent, 1, NULL, 0, NULL) < 0) {
                     perror("kevent");
                 }
-                users[connfd].init(connfd);
+                users[connfd].init(connfd,kq);
                 ++user_count;
             }
             else if (events[i].filter == EVFILT_READ) {

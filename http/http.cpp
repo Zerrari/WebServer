@@ -1,6 +1,7 @@
 #include "http.h"
 #include "../kqueue/kqueue.h"
 
+#include <string.h>
 #include <sys/errno.h>
 #include <sys/event.h>
 #include <sys/time.h>
@@ -205,7 +206,13 @@ void HTTP::process()
         }
         else if (data_read == 0)
         {
-            printf("remote client has closed the connection\n");
+            struct kevent newevent;
+            //printf("remote client has closed the connection\n");
+            EV_SET(&newevent,sockfd,EVFILT_READ,EV_DELETE,0,0,&sockfd);
+            if (kevent(kq,&newevent,1,NULL,0,NULL) < 0) {
+                perror("kevent");
+            }
+            close(sockfd);
             break;
         }
 
@@ -232,5 +239,5 @@ void HTTP::process()
 }
 
 void HTTP::close_connect(){
-    close(sockfd);
+    //close(sockfd);
 }

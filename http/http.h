@@ -22,6 +22,7 @@ public:
         read_index = 0;
         start_line = 0;
         sockfd = -1;
+        kq = -1;
     }
     ~HTTP(){
             delete [] buffer;
@@ -35,14 +36,16 @@ private:
 
 public:
     HTTP_CODE parse_content();
-    void init(int _sockfd){
+    void init(int _sockfd,int _kq){
         sockfd = _sockfd;
+        kq = _kq;
     }
     void process();
 
 private:
     char* buffer;
     int sockfd;
+    int kq;
     CHECK_STATE c_state;
     HTTP_CODE h_code;
     LINE_STATUS l_status;
