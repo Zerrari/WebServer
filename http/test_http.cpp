@@ -35,7 +35,8 @@ int main(int argc,char* argv[])
         printf( "errno is: %d\n", errno );
     }
     else {
-        HTTP http(fd);
+        HTTP http;
+        http.init(fd);
         http.process();
     }
     

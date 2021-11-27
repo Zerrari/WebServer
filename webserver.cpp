@@ -75,7 +75,8 @@ int main(int argc,char* argv[])
         perror("kqueue:");
     }
 
-    struct kevent changes[MAX_EVENT_NUMBER];
+    //struct kevent changes[MAX_EVENT_NUMBER];
+    struct kevent changes;
     struct kevent events[MAX_EVENT_NUMBER];
     int flags[MAX_EVENT_NUMBER];
     for (int i = 0; i < MAX_EVENT_NUMBER; ++i) {
@@ -86,54 +87,62 @@ int main(int argc,char* argv[])
     assert(users);
     int user_count = 0;
 
+    EV_SET(&changes,listenfd,EVFILT_READ,EV_ADD,0,0,&listenfd);
 
-    EV_SET(changes,listenfd,EVFILT_READ,EV_ADD | EV_ENABLE | EV_ERROR,0,0,&listenfd);
+    if (kevent(kq, &changes, 1, NULL, 0, NULL) < 0) {
+        perror("kevent");
+    }
 
     addsig(SIGPIPE,SIG_IGN);
 
-    flags[0] = listenfd;
-
     user_count = 1;
 
-    while (true) {
-        int nev = kevent(kq, changes, user_count, events, user_count, NULL);
+    while (1) {
+
+        int nev = kevent(kq, NULL, 0, events, MAX_FD, NULL);
 
         if (nev == -1) {
             perror("kevent:");
             exit(1);
         }
 
-        printf("nums of events:%d\n", nev);
-
-        if ( ( nev < 0 ) && ( errno != EINTR ) )
+        //printf("nums of events:%d\n", nev);
+        if ((nev < 0) && (errno != EINTR))
         {
-            printf( "kqueue failure\n" );
+            printf("kqueue failure\n");
             break;
         }
     
-        for ( int i = 0; i < nev; i++ )
+        for (int i = 0; i < nev; i++)
         {
             int sockfd = events[i].ident;
-            if( sockfd == listenfd )
+            if (events[i].flags == EV_EOF)
             {
+                close(events[i].ident);
+                --user_count;
+            }
+            else if(sockfd == listenfd)
+            {
+                struct kevent newevent;
                 struct sockaddr_in client_address;
-                socklen_t client_addrlength = sizeof( client_address );
+                socklen_t client_addrlength = sizeof(client_address);
                 int connfd = accept(listenfd, (struct sockaddr*)&client_address, &client_addrlength);
-                addfd(changes,flags,connfd);
-                users[connfd].init(connfd,changes,flags);
+                setnonblocking(connfd);
+                EV_SET(&newevent,connfd,EVFILT_READ,EV_ADD,0,0,&connfd);
+                if (kevent(kq, &newevent, 1, NULL, 0, NULL) < 0) {
+                    perror("kevent");
+                }
+                users[connfd].init(connfd);
                 ++user_count;
             }
-            else if (events[i].filter & EVFILT_READ) {
+            else if (events[i].filter == EVFILT_READ) {
                 int connfd = events[i].ident;
                 pool->append(users + connfd);
-            }
-            else
-            {
             }
         }
     }
 
-    printf( "close fds\n" );
+    printf("close fds\n");
     close(listenfd);
     return 0;
 }

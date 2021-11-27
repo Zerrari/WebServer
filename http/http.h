@@ -22,8 +22,6 @@ public:
         read_index = 0;
         start_line = 0;
         sockfd = -1;
-        changes = NULL;
-        flags = NULL;
     }
     ~HTTP(){
             delete [] buffer;
@@ -37,16 +35,12 @@ private:
 
 public:
     HTTP_CODE parse_content();
-    void init(int _sockfd,struct kevent* _changes,int* _flags) {
+    void init(int _sockfd){
         sockfd = _sockfd;
-        changes = _changes;
-        flags = _flags;
     }
     void process();
 
 private:
-    struct kevent* changes;
-    int* flags;
     char* buffer;
     int sockfd;
     CHECK_STATE c_state;
@@ -56,6 +50,5 @@ private:
     int read_index;
     int start_line;
 };
-
 
 #endif

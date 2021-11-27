@@ -63,14 +63,14 @@ threadpool<T>::threadpool(int thread_number, int max_requests) :
     {
         printf("create the %dth thread\n", i);
         // 建立线程失败，抛出错误
-        if(pthread_create(m_threads + i, NULL, worker, this) != 0)
+        if (pthread_create(m_threads + i, NULL, worker, this) != 0)
         {
             delete [] m_threads;
             throw std::exception();
         }
         // 分离父子线程，子线程死亡时，资源由自己来释放
         // 分离父子线程失败，则抛出错误
-        if(pthread_detach(m_threads[i]))
+        if (pthread_detach(m_threads[i]))
         {
             delete [] m_threads;
             throw std::exception();
@@ -133,7 +133,7 @@ void threadpool<T>::run()
         T* request = m_workqueue.front();
         m_workqueue.pop_front();
         m_queuelocker.unlock();
-        if (!request )
+        if (!request)
         {
             continue;
         }

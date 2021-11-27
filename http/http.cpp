@@ -1,6 +1,7 @@
 #include "http.h"
 #include "../kqueue/kqueue.h"
 
+#include <sys/errno.h>
 #include <sys/event.h>
 #include <sys/time.h>
 
@@ -15,6 +16,8 @@
 
 #include <unistd.h>
 #include <fcntl.h>
+
+#include <iostream>
 
 #define BUFFER_SIZE 4096
 
@@ -195,15 +198,18 @@ void HTTP::process()
         data_read = recv(sockfd, buffer + read_index, BUFFER_SIZE - read_index, 0);
         if (data_read == -1)
         {
-            printf("reading failed\n");
-            close_connect();
-            break;
+            if (errno == EAGAIN) 
+            {
+                continue;
+            }
         }
         else if (data_read == 0)
         {
             printf("remote client has closed the connection\n");
             break;
         }
+
+        printf("%s",buffer);
 
         read_index += data_read;
         HTTP::HTTP_CODE result = parse_content();
@@ -213,19 +219,18 @@ void HTTP::process()
         }
         else if(result == GET_REQUEST)
         {
-            send(sockfd,szret[0], strlen( szret[0] ), 0);
+            send(sockfd,szret[0], strlen(szret[0]), 0);
             break;
         }
         else
         {
-            send(sockfd, szret[1], strlen( szret[1] ), 0);
+            send(sockfd, szret[1], strlen(szret[1]), 0);
             break;
         }
     }
-    close(sockfd);
+    close_connect();
 }
 
 void HTTP::close_connect(){
     close(sockfd);
-    removefd(changes,flags,sockfd);
 }
