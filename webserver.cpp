@@ -3,6 +3,7 @@
 #include "sock/sock.h"
 #include "kqueue/kqueue.h"
 
+#include <ios>
 #include <sys/types.h>
 #include <sys/event.h>
 #include <sys/socket.h>
@@ -76,7 +77,7 @@ int main(int argc,char* argv[])
     }
 
     //struct kevent changes[MAX_EVENT_NUMBER];
-    struct kevent changes;
+    //struct kevent changes;
     struct kevent events[MAX_EVENT_NUMBER];
     int flags[MAX_EVENT_NUMBER];
     for (int i = 0; i < MAX_EVENT_NUMBER; ++i) {
@@ -87,11 +88,13 @@ int main(int argc,char* argv[])
     assert(users);
     int user_count = 0;
 
-    EV_SET(&changes,listenfd,EVFILT_READ,EV_ADD,0,0,&listenfd);
+    addfd(kq, listenfd);
 
-    if (kevent(kq, &changes, 1, NULL, 0, NULL) < 0) {
-        perror("kevent");
-    }
+    //EV_SET(&changes,listenfd,EVFILT_READ,EV_ADD,0,0,&listenfd);
+
+    //if (kevent(kq, &changes, 1, NULL, 0, NULL) < 0) {
+        //perror("kevent");
+    //}
 
     addsig(SIGPIPE,SIG_IGN);
 
@@ -99,7 +102,8 @@ int main(int argc,char* argv[])
 
     while (1) {
 
-        int nev = kevent(kq, NULL, 0, events, MAX_FD, NULL);
+        //int nev = kevent(kq, NULL, 0, events, MAX_FD, NULL);
+        int nev = trigger(kq,events,MAX_FD);
 
         if (nev == -1) {
             perror("kevent:");
@@ -128,7 +132,7 @@ int main(int argc,char* argv[])
                 socklen_t client_addrlength = sizeof(client_address);
                 int connfd = accept(listenfd, (struct sockaddr*)&client_address, &client_addrlength);
                 setnonblocking(connfd);
-                EV_SET(&newevent,connfd,EVFILT_READ,EV_ADD,0,0,&connfd);
+                EV_SET(&newevent,connfd,EVFILT_READ,EV_ADD | EV_ONESHOT,0,0,&connfd);
                 if (kevent(kq, &newevent, 1, NULL, 0, NULL) < 0) {
                     perror("kevent");
                 }
