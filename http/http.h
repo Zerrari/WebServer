@@ -97,6 +97,7 @@ private:
     // HTTP连接的文件描述符
     int connfd;
     sockaddr_in address;
+    // 内容长度
     int content_length;
     bool linger;
     // 请求报文
