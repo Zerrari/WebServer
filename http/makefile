@@ -2,15 +2,15 @@ CXX ?= g++
 
 CXXFLAGS = -Wall -O2
 
-all: http kqueue
+all: test_http test_kqueue
 
-http: test_http.cpp ../sock/sock.cpp http.cpp
-	$(CXX) $^ $(CXXFLAGS) -o http
+test_http: test_http.cpp ../sock/sock.cpp http.cpp
+	$(CXX) $^ $(CXXFLAGS) -o test_http
 
-kqueue: http_kqueue.cpp ../sock/sock.cpp http.cpp
-	$(CXX) $^ $(CXXFLAGS) -o kqueue
+test_kqueue: http_kqueue.cpp ../sock/sock.cpp http.cpp
+	$(CXX) $^ $(CXXFLAGS) -o test_kqueue
 
 clean:
-	rm http kqueue
+	rm test_http test_kqueue
 
 

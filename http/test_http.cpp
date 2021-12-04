@@ -36,11 +36,11 @@ int main(int argc,char* argv[])
     }
     else {
         HTTP http;
-        http.init(fd);
+        http.init(fd,client_address);
         http.process();
     }
     
-    close( listenfd );
+    close(listenfd);
 
     return 0;
 }

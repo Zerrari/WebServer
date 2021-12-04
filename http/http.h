@@ -1,57 +1,126 @@
 #ifndef HTTP_H
 #define HTTP_H
 
+#include <cstdio>
 #define BUFFER_SIZE 4096
 
+#include <sys/types.h>
+#include <sys/event.h>
+#include <netinet/in.h>
 #include "stdlib.h"
+
+int addfd(int kqueue_fd, int fd);
+int removefd(int kqueue_fd, int fd);
 
 class HTTP{
 public:
-    enum CHECK_STATE { CHECK_STATE_REQUESTLINE = 0, CHECK_STATE_HEADER, CHECK_STATE_CONTENT };
-    enum LINE_STATUS { LINE_OK = 0, LINE_BAD, LINE_OPEN };
-    enum HTTP_CODE { NO_REQUEST, GET_REQUEST, BAD_REQUEST, FORBIDDEN_REQUEST, INTERNAL_ERROR, CLOSED_CONNECTION };
-    static const char* szret[];
+    static const int READ_BUFFER_SIZE = 2048;
+    static const int WRITE_BUFFER_SIZE = 2048;
+    // 请求方法
+    enum METHOD
+    {
+        GET = 0,
+        POST,
+        HEAD,
+        PUT,
+        DELETE,
+        TRACE,
+        OPTIONS,
+        CONNECT,
+        PATH
+    };
+    // 报文检查状态
+    enum CHECK_STATE 
+    { 
+        CHECK_STATE_REQUESTLINE = 0, 
+        CHECK_STATE_HEADER, 
+        CHECK_STATE_CONTENT 
+    };
+    // 行状态
+    enum LINE_STATUS 
+    { 
+        LINE_OK = 0, 
+        LINE_BAD, 
+        LINE_OPEN 
+    };
+    // HTTP返回码
+    enum HTTP_CODE
+    {
+        NO_REQUEST,
+        GET_REQUEST,
+        BAD_REQUEST,
+        NO_RESOURCE,
+        FORBIDDEN_REQUEST,
+        FILE_REQUEST,
+        INTERNAL_ERROR,
+        CLOSED_CONNECTION
+    };
 
 public:
-    HTTP(){
-        buffer = new char[BUFFER_SIZE];
-        c_state = CHECK_STATE_REQUESTLINE;
-        l_status = LINE_OPEN;
-        h_code = NO_REQUEST;
-        check_index = 0;
-        read_index = 0;
-        start_line = 0;
-        sockfd = -1;
-        kq = -1;
-    }
-    ~HTTP(){
-            delete [] buffer;
-    }
+    HTTP() {}
+    ~HTTP() {}
 
 private:
+    int read_once();
+
     LINE_STATUS parse_line();
-    HTTP_CODE parse_requestline(char*);
+
+    HTTP_CODE process_read();
+
+    HTTP_CODE parse_request_line(char*);
     HTTP_CODE parse_headers(char*);
-    void close_connect();
+    HTTP_CODE parse_content(char*);
+
+    HTTP_CODE do_request();
+
+
+    char* get_line() { return read_buf + start_line; }
 
 public:
-    HTTP_CODE parse_content();
-    void init(int _sockfd,int _kq){
-        sockfd = _sockfd;
-        kq = _kq;
+    void init(int socket_fd, const sockaddr_in &addr);
+    void init(int socket_fd);
+    void process() { process_read(); }
+    static int get_user_count() { return user_count; }
+    void close_connect(bool);
+
+    void static set_kqueue(int fd) {
+        kqueue_fd = fd;
     }
-    void process();
+
+public:
+    static int kqueue_fd;
+    static int user_count;
 
 private:
-    char* buffer;
-    int sockfd;
-    int kq;
-    CHECK_STATE c_state;
-    HTTP_CODE h_code;
-    LINE_STATUS l_status;
-    int check_index;
-    int read_index;
+    void init();
+
+    // HTTP连接的文件描述符
+    int connfd;
+    sockaddr_in address;
+    int content_length;
+    bool linger;
+    // 请求报文
+    char read_buf[READ_BUFFER_SIZE];
+    // 读取标记
+    int read_idx;
+    // 检查标记
+    int checked_idx;
+    // 请求行开始的标记
     int start_line;
+    char write_buf[WRITE_BUFFER_SIZE];
+    int write_idx;
+    // 解析报文的状态
+    CHECK_STATE check_state;
+    // HTTP请求报文的方法
+    METHOD method;
+    // HTTP请求报文的头部
+    char *header;
+    // HTTP请求报文的url
+    char* url;
+    // HTTP请求的版本
+    char* version;
+    // HTTP请求的主机名
+    char* host;
 };
 
 #endif
