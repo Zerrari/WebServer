@@ -1,10 +1,10 @@
 #include "http.h"
-//#include "../kqueue/kqueue.h"
 
-#include <string.h>
 #include <sys/errno.h>
 #include <sys/event.h>
 #include <sys/time.h>
+#include <sys/mman.h>
+#include <sys/uio.h>
 
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -19,16 +19,6 @@
 #include <fcntl.h>
 
 #include <iostream>
-
-const char *ok_200_title = "OK";
-const char *error_400_title = "Bad Request";
-const char *error_400_form = "Your request has bad syntax or is inherently impossible to staisfy.\n";
-const char *error_403_title = "Forbidden";
-const char *error_403_form = "You do not have permission to get file form this server.\n";
-const char *error_404_title = "Not Found";
-const char *error_404_form = "The requested file was not found on this server.\n";
-const char *error_500_title = "Internal Error";
-const char *error_500_form = "There was an unusual problem serving the request file.\n";
 
 //对文件描述符设置非阻塞
 int setnonblocking(int fd)
@@ -111,7 +101,7 @@ void HTTP::init(int socket_fd, const sockaddr_in &addr)
     connfd = socket_fd;
     address = addr;
     //int reuse=1;
-    //setsockopt(m_sockfd,SOL_SOCKET,SO_REUSEADDR,&reuse,sizeof(reuse));
+    //setsockopt(socket_fd,SOL_SOCKET,SO_REUSEADDR,&reuse,sizeof(reuse));
     addfd(kqueue_fd, socket_fd);
     ++user_count;
     init();
@@ -145,21 +135,6 @@ void HTTP::init()
     // 初始化读写缓冲区
     memset(read_buf, '\0', READ_BUFFER_SIZE);
     memset(write_buf, '\0', WRITE_BUFFER_SIZE);
-}
-
-int HTTP::read_once()
-{
-    if (read_idx >= READ_BUFFER_SIZE)
-    {
-        return -2;
-    }
-
-    int bytes_read = 0;
-
-    bytes_read = recv(connfd, read_buf + read_idx, READ_BUFFER_SIZE - read_idx, 0);
-    read_idx += bytes_read;
-
-    return bytes_read;
 }
 
 //从状态机，用于分析出一行内容
@@ -330,84 +305,78 @@ HTTP::HTTP_CODE HTTP::process_read()
     HTTP::LINE_STATUS linestatus = LINE_OK;
     HTTP::HTTP_CODE retcode = NO_REQUEST;
 
-    int bytes_read = recv(connfd, read_buf + read_idx, READ_BUFFER_SIZE - read_idx, 0);
-    
-    if (bytes_read > 0) {
-
-        read_idx += bytes_read;
-
-        while ((linestatus = parse_line()) == LINE_OK)
+    while ((linestatus = parse_line()) == LINE_OK)
+    {
+        char* szTemp = read_buf + start_line;
+        start_line = checked_idx;
+        switch (check_state)
         {
-            char* szTemp = read_buf + start_line;
-            start_line = checked_idx;
-            switch (check_state)
+            case CHECK_STATE_REQUESTLINE:
             {
-                case CHECK_STATE_REQUESTLINE:
+                retcode = parse_request_line(szTemp);
+                if (retcode == BAD_REQUEST)
                 {
-                    retcode = parse_request_line(szTemp);
-                    if (retcode == BAD_REQUEST)
-                    {
-                        return BAD_REQUEST;
-                    }
-                    break;
+                    printf("BAD_REQUEST\n");
+                    return BAD_REQUEST;
                 }
-                case CHECK_STATE_HEADER:
+                break;
+            }
+            case CHECK_STATE_HEADER:
+            {
+                retcode = parse_headers(szTemp);
+                if (retcode == BAD_REQUEST)
                 {
-                    retcode = parse_headers(szTemp);
-                    if (retcode == BAD_REQUEST)
-                    {
-                        return BAD_REQUEST;
-                    }
-                    else if (retcode == GET_REQUEST)
-                    {
-                        printf("GET_REQUEST\n");
-                        return GET_REQUEST;
-                    }
-                    break;
+                    printf("BAD_REQUEST\n");
+                    return BAD_REQUEST;
                 }
-                case CHECK_STATE_CONTENT:
+                else if (retcode == GET_REQUEST)
                 {
-                    retcode = parse_content(szTemp);
-                    if (retcode == GET_REQUEST) {
-                        printf("GET_REQUEST\n");
-                        return GET_REQUEST;
-                    }
-                    break;
+                    printf("GET_REQUEST\n");
+                    return GET_REQUEST;
                 }
+                break;
+            }
+            case CHECK_STATE_CONTENT:
+            {
+                retcode = parse_content(szTemp);
+                if (retcode == GET_REQUEST) {
+                    printf("GET_REQUEST\n");
+                    return GET_REQUEST;
+                }
+                break;
+            }
 
-                default:
-                {
-                    return INTERNAL_ERROR;
-                }
+            default:
+            {
+                return INTERNAL_ERROR;
             }
         }
-
     }
+    
+    return NO_REQUEST;
+}
 
-    else if (bytes_read < 0) {
+void HTTP::process()
+{
+    int bytes_read = recv(connfd, read_buf + read_idx, READ_BUFFER_SIZE - read_idx, 0);
+    
+    if (bytes_read < 0) {
         if (errno == EAGAIN || errno == EWOULDBLOCK) {
-            return NO_REQUEST; 
+            return; 
         }
         else {
             perror("other error");
         }
     }
-    
     else {
-        return NO_REQUEST;
+        read_idx += bytes_read;
+        process_read();
     }
 
-    if (linestatus == LINE_OPEN)
-    {
-        return NO_REQUEST;
-    }
-
-    return BAD_REQUEST;
-
+    return;
 }
 
-HTTP::HTTP_CODE HTTP::do_request()
+void HTTP::do_request()
 {
-    printf("do_request\n");
-    return FILE_REQUEST;
+    printf("Do request\n");
 }

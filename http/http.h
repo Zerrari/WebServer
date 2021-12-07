@@ -2,18 +2,23 @@
 #define HTTP_H
 
 #include <cstdio>
+#include <sys/_types/_iovec_t.h>
 #define BUFFER_SIZE 4096
 
 #include <sys/types.h>
 #include <sys/event.h>
+#include <sys/stat.h>
+
 #include <netinet/in.h>
 #include "stdlib.h"
 
 int addfd(int kqueue_fd, int fd);
 int removefd(int kqueue_fd, int fd);
+int setnonblocking(int fd);
 
 class HTTP{
 public:
+    static const int FILENAME_LEN = 200;
     static const int READ_BUFFER_SIZE = 2048;
     static const int WRITE_BUFFER_SIZE = 2048;
     // 请求方法
@@ -61,8 +66,6 @@ public:
     ~HTTP() {}
 
 private:
-    int read_once();
-
     LINE_STATUS parse_line();
 
     HTTP_CODE process_read();
@@ -71,15 +74,14 @@ private:
     HTTP_CODE parse_headers(char*);
     HTTP_CODE parse_content(char*);
 
-    HTTP_CODE do_request();
-
-
     char* get_line() { return read_buf + start_line; }
+
+    void do_request();
 
 public:
     void init(int socket_fd, const sockaddr_in &addr);
     void init(int socket_fd);
-    void process() { process_read(); }
+    void process();
     static int get_user_count() { return user_count; }
     void close_connect(bool);
 
@@ -108,7 +110,9 @@ private:
     int checked_idx;
     // 请求行开始的标记
     int start_line;
+    // 请求报文存储区
     char write_buf[WRITE_BUFFER_SIZE];
+    // 记录当前写入的位置
     int write_idx;
     // 解析报文的状态
     CHECK_STATE check_state;

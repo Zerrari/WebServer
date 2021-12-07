@@ -78,16 +78,16 @@ private:
     static processpool<T>* m_instance;
 };
 
-template<typename T>
-processpool<T>* processpool<T>::m_instance = NULL;
-
-static int setnonblocking(int fd)
+static int setnonblocking( int fd )
 {
     int old_option = fcntl( fd, F_GETFL );
     int new_option = old_option | O_NONBLOCK;
     fcntl( fd, F_SETFL, new_option );
     return old_option;
 }
+
+template<typename T>
+processpool<T>* processpool<T>::m_instance = NULL;
 
 template<typename T>
 processpool<T>::processpool(int listenfd, int _kq, int process_number) 
@@ -100,7 +100,7 @@ processpool<T>::processpool(int listenfd, int _kq, int process_number)
 
     for( int i = 0; i < process_number; ++i )
     {
-        int ret = socketpair( PF_UNIX, SOCK_STREAM, 0, m_sub_process[i].m_pipefd );
+        int ret = socketpair(AF_UNIX, SOCK_STREAM, 0, m_sub_process[i].m_pipefd);
         assert( ret == 0 );
 
         m_sub_process[i].m_pid = fork();
@@ -109,14 +109,12 @@ processpool<T>::processpool(int listenfd, int _kq, int process_number)
         // 父进程
         if (m_sub_process[i].m_pid > 0)
         {
-            // 关闭读端
-            close( m_sub_process[i].m_pipefd[1] );
+            close(m_sub_process[i].m_pipefd[1]);
             continue;
         }
         // 子进程
         else
         {
-            // 关闭写端
             close(m_sub_process[i].m_pipefd[0]);
 
             // 设置当前子进程的序号
@@ -146,10 +144,17 @@ template<typename T>
 void processpool<T>::run_child()
 {
 
-    // 监听管道的读端
     int pipefd = m_sub_process[m_idx].m_pipefd[1];
-    printf("child\n");
-    addfd(kq, pipefd);
+    //setnonblocking(pipefd);
+    printf("child pipefd: %d\n",pipefd);
+
+    //addfd(kq, pipefd);
+    struct kevent newevent;
+    EV_SET(&newevent,pipefd,EVFILT_READ,EV_ADD | EV_ENABLE,0,0,&pipefd);
+    if (kevent(kq,&newevent,1,NULL,0,NULL) == -1 ) {
+        printf("pipefd\n");
+        perror("kevent");
+    }
 
     struct kevent events[MAX_EVENT_NUMBER];
     T* users = new T[USER_PER_PROCESS];
@@ -162,9 +167,9 @@ void processpool<T>::run_child()
         //number = trigger(kq,events,MAX_EVENT_NUMBER);
         number = kevent(kq, NULL, 0, events, MAX_EVENT_NUMBER, NULL);
 
+        printf("number : %d\n",number);
         if ((number < 0) && (errno != EINTR))
         {
-            perror("child");
             printf("errno: %d\n", errno);
             printf("kqueue failure\n");
             break;
@@ -202,6 +207,7 @@ void processpool<T>::run_child()
             else if(events[i].filter == EVFILT_SIGNAL)
             {
             }
+            // 工作逻辑
             else if( events[i].filter == EVFILT_READ )
             {
                  users[sockfd].process();
@@ -215,14 +221,14 @@ void processpool<T>::run_child()
 
     delete [] users;
     users = NULL;
-    close( pipefd );
+    close(pipefd);
 }
 
 template< typename T >
 void processpool< T >::run_parent()
 {
     
-    setnonblocking(m_listenfd);
+    //setnonblocking(m_listenfd);
     addfd(kq, m_listenfd);
 
     printf("parent: success\n");

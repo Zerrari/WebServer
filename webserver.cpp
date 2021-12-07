@@ -1,7 +1,6 @@
 #include "http/http.h"
 #include "threadpool/threadpool.h"
 #include "sock/sock.h"
-#include "kqueue/kqueue.h"
 
 #include <ios>
 #include <sys/types.h>
@@ -16,33 +15,13 @@
 #define MAX_FD 65536
 #define MAX_EVENT_NUMBER 10000
 
-int setnonblocking(int fd)
-{
-    int old_option = fcntl(fd, F_GETFL);
-    int new_option = old_option | O_NONBLOCK;
-    fcntl(fd, F_SETFL, new_option);
-    return old_option;
-}
-
-void addsig(int sig, void(handler)(int), bool restart = true)
-{
-    struct sigaction sa;
-    memset(&sa, '\0', sizeof(sa));
-    sa.sa_handler = handler;
-    if(restart)
-    {
-        sa.sa_flags |= SA_RESTART;
-    }
-    sigfillset(&sa.sa_mask);
-    assert(sigaction(sig, &sa, NULL) != -1);
-}
-
-void show_error(int connfd, const char* info)
-{
-    printf("%s", info);
-    send(connfd, info, strlen(info), 0);
-    close(connfd);
-}
+//int setnonblocking(int fd)
+//{
+    //int old_option = fcntl(fd, F_GETFL);
+    //int new_option = old_option | O_NONBLOCK;
+    //fcntl(fd, F_SETFL, new_option);
+    //return old_option;
+//}
 
 int main(int argc,char* argv[])
 {
@@ -76,34 +55,25 @@ int main(int argc,char* argv[])
         perror("kqueue:");
     }
 
-    //struct kevent changes[MAX_EVENT_NUMBER];
-    //struct kevent changes;
+    struct kevent newevent;
     struct kevent events[MAX_EVENT_NUMBER];
-    int flags[MAX_EVENT_NUMBER];
-    for (int i = 0; i < MAX_EVENT_NUMBER; ++i) {
-        flags[i] = -1;
+
+    EV_SET(&newevent, listenfd, EVFILT_READ, EV_ADD | EV_ENABLE, 0, 0, &listenfd);
+
+    if (kevent(kq, &newevent, 1, NULL, 0, NULL) == -1)
+    {
+        perror("kevent");
+        exit(1);
     }
 
-    HTTP* users = new HTTP[MAX_FD];
+    HTTP* users = new HTTP[MAX_EVENT_NUMBER];
     assert(users);
-    int user_count = 0;
 
-    addfd(kq, listenfd);
-
-    //EV_SET(&changes,listenfd,EVFILT_READ,EV_ADD,0,0,&listenfd);
-
-    //if (kevent(kq, &changes, 1, NULL, 0, NULL) < 0) {
-        //perror("kevent");
-    //}
-
-    addsig(SIGPIPE,SIG_IGN);
-
-    user_count = 1;
+    HTTP::set_kqueue(kq);
 
     while (1) {
 
-        //int nev = kevent(kq, NULL, 0, events, MAX_FD, NULL);
-        int nev = trigger(kq,events,MAX_FD);
+        int nev = kevent(kq, NULL, 0, events, MAX_EVENT_NUMBER, NULL);
 
         if (nev == -1) {
             perror("kevent:");
@@ -122,26 +92,33 @@ int main(int argc,char* argv[])
             int sockfd = events[i].ident;
             if (events[i].flags == EV_EOF)
             {
-                close(events[i].ident);
-                --user_count;
+                users[sockfd].close_connect(true);
             }
             else if(sockfd == listenfd)
             {
-                struct kevent newevent;
                 struct sockaddr_in client_address;
                 socklen_t client_addrlength = sizeof(client_address);
+
                 int connfd = accept(listenfd, (struct sockaddr*)&client_address, &client_addrlength);
-                setnonblocking(connfd);
-                EV_SET(&newevent,connfd,EVFILT_READ,EV_ADD | EV_ONESHOT,0,0,&connfd);
-                if (kevent(kq, &newevent, 1, NULL, 0, NULL) < 0) {
-                    perror("kevent");
+
+                if (connfd < 0)
+                {
+                    printf("errno is: %d\n", errno);
+                    continue;
                 }
-                users[connfd].init(connfd,kq);
-                ++user_count;
+
+                setnonblocking(connfd);
+                
+                users[connfd].init(connfd, client_address);
+
+                printf("Now have %d users\n", HTTP::get_user_count());
             }
             else if (events[i].filter == EVFILT_READ) {
                 int connfd = events[i].ident;
                 pool->append(users + connfd);
+            }
+            else {
+                continue;
             }
         }
     }

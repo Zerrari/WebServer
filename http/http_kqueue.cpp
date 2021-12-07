@@ -93,7 +93,6 @@ int main( int argc, char* argv[] )
 
             if (events[i].flags & EV_EOF) {
                 users[event_fd].close_connect(true);
-                continue;
             }
 
             else if (event_fd == listenfd) {

@@ -1,5 +1,5 @@
-#ifndef THREADPOOL_H
-#define THREADPOOL_H
+#ifndef THREAD_POOL_H
+#define THREAD_POOL_H
 
 #include <list>
 #include <cstdio>
@@ -18,9 +18,9 @@ public:
     bool append(T* request);
 
 private:
-    // 工作线程运行的函数，不断从工作队列中取出任务并执行
+    // 工作线程运行的函数
     static void* worker(void* arg);
-    //
+    // 从请求队列中取任务运行
     void run();
 
 private: 

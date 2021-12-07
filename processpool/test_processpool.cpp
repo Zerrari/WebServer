@@ -21,6 +21,8 @@ int main(int argc, char* argv[])
 
     int kq = kqueue();
 
+    printf("kq: %d\n",kq);
+
     processpool<HTTP>* pool = processpool<HTTP>::create(listenfd, kq, 1);
 
     pool->run();
