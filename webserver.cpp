@@ -19,9 +19,8 @@
 #define MAX_EVENT_NUMBER 10000
 #define TIMESLOT 5
 
+// 双向链表定时器
 static sort_timer_lst timer_lst;
-
-static int kq = kqueue();
 
 HTTP* users = new HTTP[MAX_EVENT_NUMBER];
 
@@ -31,12 +30,13 @@ void timer_handler()
     alarm(TIMESLOT);
 }
 
+// 定时器回调函数
 void cb_func(client_data* user_data)
 {
     users[user_data->sockfd].close_connect(true);
 }
 
-//设置信号函数
+// 添加信号处理函数
 void addsig(int sig, bool restart = true)
 {
     struct sigaction sa;
@@ -48,15 +48,6 @@ void addsig(int sig, bool restart = true)
     assert(sigaction(sig, &sa, NULL) != -1);
 }
 
-//int setnonblocking(int fd)
-//{
-    //int old_option = fcntl(fd, F_GETFL);
-    //int new_option = old_option | O_NONBLOCK;
-    //fcntl(fd, F_SETFL, new_option);
-    //return old_option;
-//}
-
-
 int main(int argc,char* argv[])
 {
     if(argc <= 2)
@@ -65,14 +56,12 @@ int main(int argc,char* argv[])
         return 1;
     }
 
-    addsig(SIGALRM, false);
 
     const char* ip = argv[1];
-    int port = atoi( argv[2] );
-
+    int port = atoi(argv[2]);
     int listenfd = create_socket(ip,port);
 
-    printf("listenfd: %d\n",listenfd);
+    printf("Server starts to listening...\n");
 
     threadpool<HTTP>* pool = NULL;
     try
@@ -84,52 +73,41 @@ int main(int argc,char* argv[])
         return 1;
     }
 
-    // create kqueue
+    static int kq = kqueue();
 
     if (kq == -1) {
         perror("kqueue:");
     }
 
-    struct kevent newevent;
+    struct kevent newevent[3];
     struct kevent events[MAX_EVENT_NUMBER];
 
+    // 为信号SIGALRM注册函数
+    addsig(SIGALRM, false);
+    addsig(SIGTERM, false);
+
     // add listenfd to kqueue
-    EV_SET(&newevent, listenfd, EVFILT_READ, EV_ADD, 0, 0, &listenfd);
+    EV_SET(newevent, listenfd, EVFILT_READ, EV_ADD, 0, 0, &listenfd);
+    EV_SET(newevent+1, SIGALRM, EVFILT_SIGNAL, EV_ADD, 0, 0, NULL);
+    EV_SET(newevent+2, SIGTERM, EVFILT_SIGNAL, EV_ADD, 0, 0, NULL);
 
-    if (kevent(kq, &newevent, 1, NULL, 0, NULL) == -1)
+    if (kevent(kq, newevent, 3, NULL, 0, NULL) == -1)
     {
         perror("kevent");
         exit(1);
     }
-
-    EV_SET(&newevent, SIGALRM, EVFILT_SIGNAL, EV_ADD, 0, 0, NULL);
-
-    if (kevent(kq, &newevent, 1, NULL, 0, NULL) == -1)
-    {
-        perror("kevent");
-        exit(1);
-    }
-
-    assert(users);
 
     HTTP::set_kqueue(kq);
 
     client_data* user_timer = new client_data[MAX_EVENT_NUMBER];
     bool timeout = false;
+    bool stop_server = false;
 
     alarm(TIMESLOT);
 
-    while (1) {
+    while (!stop_server) {
 
-        //printf("start to kevent\n");
         int nev = kevent(kq, NULL, 0, events, MAX_EVENT_NUMBER, NULL);
-
-        //printf("events: %d\n",nev);
-
-        if (nev == -1) {
-            perror("kevent:");
-            exit(1);
-        }
 
         if ((nev < 0) && (errno != EINTR))
         {
@@ -175,7 +153,7 @@ int main(int argc,char* argv[])
                 user_timer[connfd].timer = timer;
                 timer_lst.add_timer(timer);
 
-                printf("Now have %d users\n", HTTP::get_user_count());
+                printf("Now have %d client\n", HTTP::get_user_count());
             }
             else if (events[i].filter == EVFILT_READ) {
                 util_timer* timer = user_timer[sockfd].timer;
@@ -198,21 +176,25 @@ int main(int argc,char* argv[])
                 }
 
             }
+            // 处理SIGALRM信号
             else if (sockfd == SIGALRM) {
-                printf("handle alarm signal\n");
                 timeout = true;
+            }
+            else if (sockfd == SIGTERM) {
+                printf("Sever terminate...\n");
+                stop_server = true;
             }
             else {
                 continue;
             }
         }
+        // 再次调用alarm
         if (timeout) {
             timer_handler();
             timeout = false;
         }
     }
 
-    printf("close fds\n");
     close(listenfd);
     return 0;
 }

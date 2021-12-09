@@ -359,6 +359,9 @@ HTTP::HTTP_CODE HTTP::process_read()
 int HTTP::read_once()
 {
     int bytes_read = recv(connfd, read_buf + read_idx, READ_BUFFER_SIZE - read_idx, 0);
+
+    if (bytes_read > 0) 
+        read_idx += bytes_read;
     
     return bytes_read;
 }
