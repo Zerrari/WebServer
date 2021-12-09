@@ -28,10 +28,10 @@ int setnonblocking(int fd)
     fcntl(fd, F_SETFL, new_option);
     int flags = fcntl(fd, F_GETFL);
     if ((flags & O_NONBLOCK) == O_NONBLOCK) {
-      printf("Yup, it's nonblocking.\n");
+      //printf("Yup, it's nonblocking.\n");
     }
     else {
-      printf("Nope, it's blocking.\n");
+      //printf("Nope, it's blocking.\n");
     }
     return old_option;
 }
@@ -41,9 +41,9 @@ int addfd(int kqueue_fd, int fd)
 {
     struct kevent newevent[2];
 
-    setnonblocking(fd);
+    //setnonblocking(fd);
 
-    EV_SET(newevent, fd, EVFILT_READ, EV_ADD | EV_ENABLE, 0, 0, &fd);
+    EV_SET(newevent, fd, EVFILT_READ, EV_ADD | EV_ENABLE , 0, 0, &fd);
     EV_SET(newevent+1, fd, EVFILT_WRITE, EV_ADD | EV_DISABLE, 0, 0, &fd);
 
     if (kevent(kqueue_fd, newevent, 2, NULL, 0, NULL) == -1) {
@@ -356,24 +356,16 @@ HTTP::HTTP_CODE HTTP::process_read()
     return NO_REQUEST;
 }
 
-void HTTP::process()
+int HTTP::read_once()
 {
     int bytes_read = recv(connfd, read_buf + read_idx, READ_BUFFER_SIZE - read_idx, 0);
     
-    if (bytes_read < 0) {
-        if (errno == EAGAIN || errno == EWOULDBLOCK) {
-            return; 
-        }
-        else {
-            perror("other error");
-        }
-    }
-    else {
-        read_idx += bytes_read;
-        process_read();
-    }
+    return bytes_read;
+}
 
-    return;
+void HTTP::process()
+{
+    process_read();
 }
 
 void HTTP::do_request()

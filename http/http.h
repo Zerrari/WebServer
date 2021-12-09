@@ -89,6 +89,8 @@ public:
         kqueue_fd = fd;
     }
 
+    int read_once();
+
 public:
     static int kqueue_fd;
     static int user_count;

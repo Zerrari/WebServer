@@ -6,6 +6,7 @@
 #include <exception>
 #include <pthread.h>
 #include <iostream>
+#include <sys/_pthread/_pthread_t.h>
 #include "locker.h"
 
 template<typename T>
@@ -61,13 +62,13 @@ threadpool<T>::threadpool(int thread_number, int max_requests) :
     // 循环调用pthread_create建立线程
     for (int i = 0; i < thread_number; ++i)
     {
-        printf("create the %dth thread\n", i);
         // 建立线程失败，抛出错误
         if (pthread_create(m_threads + i, NULL, worker, this) != 0)
         {
             delete [] m_threads;
             throw std::exception();
         }
+
         // 分离父子线程，子线程死亡时，资源由自己来释放
         // 分离父子线程失败，则抛出错误
         if (pthread_detach(m_threads[i]))
@@ -111,8 +112,11 @@ template<typename T>
 void* threadpool<T>::worker(void* arg)
 {
     threadpool* pool = (threadpool*)arg;
+
+
     // 启动线程池
     pool->run();
+
     return pool;
 }
 
