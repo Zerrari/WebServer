@@ -5,6 +5,8 @@
 
 #include <ctime>
 #include <cassert>
+#include <i386/types.h>
+#include <sys/_types/_time_t.h>
 #include <sys/signal.h>
 #include <sys/types.h>
 #include <sys/event.h>
@@ -56,7 +58,6 @@ int main(int argc,char* argv[])
         return 1;
     }
 
-
     const char* ip = argv[1];
     int port = atoi(argv[2]);
     int listenfd = create_socket(ip,port);
@@ -100,6 +101,7 @@ int main(int argc,char* argv[])
     HTTP::set_kqueue(kq);
 
     client_data* user_timer = new client_data[MAX_EVENT_NUMBER];
+
     bool timeout = false;
     bool stop_server = false;
 
@@ -117,17 +119,17 @@ int main(int argc,char* argv[])
     
         for (int i = 0; i < nev; i++)
         {
-            int sockfd = events[i].ident;
+            int fd = events[i].ident;
             if (events[i].flags & EV_EOF)
             {
-                users[sockfd].close_connect(true);
-                util_timer* timer = user_timer[sockfd].timer;
-                timer->cb_func(&user_timer[sockfd]);
+                users[fd].close_connect(true);
+                util_timer* timer = user_timer[fd].timer;
+                timer->cb_func(&user_timer[fd]);
 
                 if (timer)
                     timer_lst.del_timer(timer);
             }
-            else if(sockfd == listenfd)
+            else if(fd == listenfd)
             {
                 struct sockaddr_in client_address;
                 socklen_t client_addrlength = sizeof(client_address);
@@ -143,20 +145,20 @@ int main(int argc,char* argv[])
                 setnonblocking(connfd);
                 
                 users[connfd].init(connfd, client_address);
-                user_timer[connfd].address = client_address;
+
                 user_timer[connfd].sockfd = connfd;
-                util_timer *timer = new util_timer;
-                timer->user_data = &user_timer[connfd];
-                timer->cb_func = cb_func;
+
+                
                 time_t cur = time(NULL);
-                timer->expire = cur + 3 * TIMESLOT;
+                time_t expire = cur + 3 * TIMESLOT;
+                util_timer *timer = new util_timer(expire, cb_func, &user_timer[connfd]);
                 user_timer[connfd].timer = timer;
                 timer_lst.add_timer(timer);
 
-                printf("Now have %d client\n", HTTP::get_user_count());
+                printf("Now have %d clients\n", HTTP::get_user_count());
             }
             else if (events[i].filter == EVFILT_READ) {
-                util_timer* timer = user_timer[sockfd].timer;
+                util_timer* timer = user_timer[fd].timer;
                 int connfd = events[i].ident;
 
                 if (users[connfd].read_once()) {
@@ -169,7 +171,7 @@ int main(int argc,char* argv[])
                     }
                 }
                 else {
-                    timer->cb_func(&user_timer[sockfd]);
+                    timer->cb_func(&user_timer[fd]);
                     if (timer) {
                         timer_lst.del_timer(timer);
                     }
@@ -177,10 +179,10 @@ int main(int argc,char* argv[])
 
             }
             // 处理SIGALRM信号
-            else if (sockfd == SIGALRM) {
+            else if (fd == SIGALRM) {
                 timeout = true;
             }
-            else if (sockfd == SIGTERM) {
+            else if (fd == SIGTERM) {
                 printf("Sever terminate...\n");
                 stop_server = true;
             }

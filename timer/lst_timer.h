@@ -5,9 +5,9 @@
 #include <netinet/in.h>
 
 class util_timer;
+
 struct client_data
 {
-    sockaddr_in address;
     int sockfd;
     util_timer *timer;
 };
@@ -16,6 +16,7 @@ class util_timer
 {
 public:
     util_timer() : prev(NULL), next(NULL) {}
+    util_timer(time_t _expire, void(*_cb_func)(client_data*), client_data* _user_data):expire(_expire), cb_func(_cb_func), user_data(_user_data), prev(NULL), next(NULL) {}
 
 public:
     time_t expire;
