@@ -1,15 +1,15 @@
 #ifndef LST_TIMER
 #define LST_TIMER
 
+#include <sys/socket.h>
 #include <time.h>
 #include <netinet/in.h>
 
 class util_timer;
 
-struct client_data
-{
+struct client_data{
     int sockfd;
-    util_timer *timer;
+    util_timer* timer;
 };
 
 class util_timer
@@ -40,33 +40,40 @@ public:
             tmp = head;
         }
     }
-    void add_timer(util_timer *timer)
+    util_timer* add_timer(int timeout)
     {
+        util_timer* timer = new util_timer();
+        timer->expire = timeout;
+
         if (!timer)
         {
-            return;
+            return NULL;
         }
         if (!head)
         {
             head = tail = timer;
-            return;
+            return timer;
         }
         if (timer->expire < head->expire)
         {
             timer->next = head;
             head->prev = timer;
             head = timer;
-            return;
+            return timer;
         }
         add_timer(timer, head);
+        return timer;
     }
-    void adjust_timer(util_timer *timer)
+    void adjust_timer(util_timer *timer, int timeout)
     {
         if (!timer)
         {
             return;
         }
+
+        timer->expire = timeout;
         util_timer *tmp = timer->next;
+
         if (!tmp || (timer->expire < tmp->expire))
         {
             return;

@@ -6,7 +6,7 @@
 #include <ctime>
 #include <cassert>
 #include <i386/types.h>
-#include <sys/_types/_time_t.h>
+#include <strings.h>
 #include <sys/signal.h>
 #include <sys/types.h>
 #include <sys/event.h>
@@ -21,16 +21,12 @@
 #define MAX_EVENT_NUMBER 10000
 #define TIMESLOT 5
 
-// 双向链表定时器
-static sort_timer_lst timer_lst;
-
 HTTP* users = new HTTP[MAX_EVENT_NUMBER];
 
-void timer_handler()
-{
-    timer_lst.tick();
-    alarm(TIMESLOT);
-}
+typedef util_timer Timer;
+typedef sort_timer_lst TimerContainer;
+
+static TimerContainer tc;
 
 // 定时器回调函数
 void cb_func(client_data* user_data)
@@ -50,6 +46,13 @@ void addsig(int sig, bool restart = true)
     assert(sigaction(sig, &sa, NULL) != -1);
 }
 
+void timer_handler()
+{
+    tc.tick();
+    alarm(TIMESLOT);
+}
+
+
 int main(int argc,char* argv[])
 {
     if(argc <= 2)
@@ -60,6 +63,7 @@ int main(int argc,char* argv[])
 
     const char* ip = argv[1];
     int port = atoi(argv[2]);
+
     int listenfd = create_socket(ip,port);
 
     printf("Server starts to listening...\n");
@@ -123,11 +127,11 @@ int main(int argc,char* argv[])
             if (events[i].flags & EV_EOF)
             {
                 users[fd].close_connect(true);
-                util_timer* timer = user_timer[fd].timer;
+                Timer* timer = user_timer[fd].timer;
                 timer->cb_func(&user_timer[fd]);
 
                 if (timer)
-                    timer_lst.del_timer(timer);
+                    tc.del_timer(timer);
             }
             else if(fd == listenfd)
             {
@@ -148,17 +152,17 @@ int main(int argc,char* argv[])
 
                 user_timer[connfd].sockfd = connfd;
 
-                
                 time_t cur = time(NULL);
-                time_t expire = cur + 3 * TIMESLOT;
-                util_timer *timer = new util_timer(expire, cb_func, &user_timer[connfd]);
+                time_t timeout = cur + 3 * TIMESLOT;
+                Timer* timer = tc.add_timer(timeout);
+                timer->cb_func = cb_func;
+                timer->user_data = &user_timer[connfd];
                 user_timer[connfd].timer = timer;
-                timer_lst.add_timer(timer);
 
                 printf("Now have %d clients\n", HTTP::get_user_count());
             }
             else if (events[i].filter == EVFILT_READ) {
-                util_timer* timer = user_timer[fd].timer;
+                Timer* timer = user_timer[fd].timer;
                 int connfd = events[i].ident;
 
                 if (users[connfd].read_once()) {
@@ -167,13 +171,13 @@ int main(int argc,char* argv[])
                     if (timer) {
                         time_t cur = time(NULL);
                         timer->expire = cur + 3 * TIMESLOT;
-                        timer_lst.adjust_timer(timer);
+                        tc.adjust_timer(timer, timer->expire);
                     }
                 }
                 else {
                     timer->cb_func(&user_timer[fd]);
                     if (timer) {
-                        timer_lst.del_timer(timer);
+                        tc.del_timer(timer);
                     }
                 }
 
@@ -200,3 +204,4 @@ int main(int argc,char* argv[])
     close(listenfd);
     return 0;
 }
+

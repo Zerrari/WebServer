@@ -5,13 +5,7 @@
 #include <netinet/in.h>
 #include <stdio.h>
 
-class tw_timer;
-
-struct client_data
-{
-    int sockfd;
-    tw_timer* timer;
-};
+struct client_data;
 
 class tw_timer
 {
@@ -82,7 +76,7 @@ public:
         }
         return timer;
     }
-    void del_timer( tw_timer* timer )
+    void del_timer(tw_timer* timer)
     {
         if (!timer)
         {

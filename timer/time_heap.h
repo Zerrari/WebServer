@@ -5,15 +5,9 @@
 #include <netinet/in.h>
 #include <time.h>
 
+struct client_data;
+
 using std::exception;
-
-class heap_timer;
-
-struct client_data
-{
-    int sockfd;
-    heap_timer* timer;
-};
 
 class heap_timer
 {
@@ -83,18 +77,23 @@ public:
     }
 
 public:
-    void add_timer(heap_timer* timer) throw (std::exception)
+    heap_timer* add_timer(int timeout) throw (std::exception)
     {
+        heap_timer* timer = new heap_timer(timeout);
+
         if(!timer)
         {
-            return;
+            return NULL;
         }
+
         if(cur_size >= capacity)
         {
             resize();
         }
+
         int hole = cur_size++;
         int parent = 0;
+
         for(; hole > 0; hole=parent)
         {
             parent = (hole-1)/2;
@@ -105,6 +104,7 @@ public:
             array[hole] = array[parent];
         }
         array[hole] = timer;
+        return timer;
     }
 
     void del_timer(heap_timer* timer)
