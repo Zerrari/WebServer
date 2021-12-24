@@ -1,7 +1,9 @@
 #include "http.h"
 
 #include <sys/errno.h>
+#include <sys/socket.h>
 #include <sys/event.h>
+#include <sys/fcntl.h>
 #include <sys/time.h>
 #include <sys/mman.h>
 #include <sys/uio.h>
@@ -41,12 +43,24 @@ int addfd(int kqueue_fd, int fd)
 {
     struct kevent newevent[2];
 
-    //setnonblocking(fd);
-
-    EV_SET(newevent, fd, EVFILT_READ, EV_ADD | EV_ENABLE , 0, 0, &fd);
+    EV_SET(newevent, fd, EVFILT_READ, EV_ADD | EV_ENABLE, 0, 0, &fd);
     EV_SET(newevent+1, fd, EVFILT_WRITE, EV_ADD | EV_DISABLE, 0, 0, &fd);
 
     if (kevent(kqueue_fd, newevent, 2, NULL, 0, NULL) == -1) {
+        perror("kevent");
+        return -1;
+    }
+
+    return 0;
+}
+
+int modfd(int kqueue_fd, int fd, int EVFILT_FLAG, int flag, void* data)
+{
+    struct kevent newevent;
+
+    EV_SET(&newevent, fd, EVFILT_FLAG, flag, 0, 0, data);
+
+    if (kevent(kqueue_fd, &newevent, 1, NULL, 0, NULL) == -1) {
         perror("kevent");
         return -1;
     }
@@ -193,12 +207,12 @@ HTTP::HTTP_CODE HTTP::parse_request_line(char *text)
     // strcasecmp
     // 比较字符串的大小
     if (strcasecmp(temp_method, "GET") == 0) {
-        printf("method: GET\n");
+        //printf("method: GET\n");
         method = GET;
     }
     else if (strcasecmp(temp_method, "POST") == 0)
     {
-        printf("method: POST\n");
+        //printf("method: POST\n");
         method = POST;
     }
     else
@@ -215,7 +229,7 @@ HTTP::HTTP_CODE HTTP::parse_request_line(char *text)
     if (strncasecmp(version, "HTTP/1.1", 8) != 0) {
         return BAD_REQUEST;
     }
-    printf("version: %s\n", version);
+    //printf("version: %s\n", version);
 
     if (strncasecmp(url, "http://", 7) == 0)
     {
@@ -251,7 +265,7 @@ HTTP::HTTP_CODE HTTP::parse_headers(char *text)
     {
         if (content_length != 0)
         {
-            printf("state\n");
+            //printf("state\n");
             check_state = CHECK_STATE_CONTENT;
             return NO_REQUEST;
         }
@@ -264,7 +278,7 @@ HTTP::HTTP_CODE HTTP::parse_headers(char *text)
         if (strcasecmp(text, "keep-alive") == 0)
         {
             linger = true;
-            printf("Connection: keep-alive\n");
+            //printf("Connection: keep-alive\n");
         }
     }
     else if (strncasecmp(text, "Content-length:", 15) == 0)
@@ -272,14 +286,14 @@ HTTP::HTTP_CODE HTTP::parse_headers(char *text)
         text += 15;
         text += strspn(text, " \t");
         content_length = atol(text);
-        printf("Content-length: %d\n",content_length);
+        //printf("Content-length: %d\n",content_length);
     }
     else if (strncasecmp(text, "Host:", 5) == 0)
     {
         text += 5;
         text += strspn(text, " \t");
         host = text;
-        printf("Host: %s\n", host);
+        //printf("Host: %s\n", host);
     }
     else
     {
@@ -305,7 +319,7 @@ HTTP::HTTP_CODE HTTP::process_read()
     HTTP::LINE_STATUS linestatus = LINE_OK;
     HTTP::HTTP_CODE retcode = NO_REQUEST;
 
-    while ((linestatus = parse_line()) == LINE_OK)
+    while ((linestatus = parse_line()) == LINE_OK && retcode == NO_REQUEST)
     {
         char* szTemp = read_buf + start_line;
         start_line = checked_idx;
@@ -317,6 +331,7 @@ HTTP::HTTP_CODE HTTP::process_read()
                 if (retcode == BAD_REQUEST)
                 {
                     printf("BAD_REQUEST\n");
+                    init();
                     return BAD_REQUEST;
                 }
                 break;
@@ -327,11 +342,13 @@ HTTP::HTTP_CODE HTTP::process_read()
                 if (retcode == BAD_REQUEST)
                 {
                     printf("BAD_REQUEST\n");
+                    init();
                     return BAD_REQUEST;
                 }
                 else if (retcode == GET_REQUEST)
                 {
                     printf("GET_REQUEST\n");
+                    init();
                     return GET_REQUEST;
                 }
                 break;
@@ -341,6 +358,7 @@ HTTP::HTTP_CODE HTTP::process_read()
                 retcode = parse_content(szTemp);
                 if (retcode == GET_REQUEST) {
                     printf("GET_REQUEST\n");
+                    init();
                     return GET_REQUEST;
                 }
                 break;
@@ -348,6 +366,7 @@ HTTP::HTTP_CODE HTTP::process_read()
 
             default:
             {
+                init();
                 return INTERNAL_ERROR;
             }
         }
@@ -362,16 +381,45 @@ int HTTP::read_once()
 
     if (bytes_read > 0) 
         read_idx += bytes_read;
+
+    printf("read_idx: %d\n", read_idx);
     
     return bytes_read;
 }
 
 void HTTP::process()
 {
+    //printf("start\n");
     process_read();
+    //printf("exit\n");
+}
+
+void HTTP::restart()
+{
+    printf("restart\n");
+    check_state = CHECK_STATE_REQUESTLINE;
+    method = GET;
+    url = 0;
+    version = 0;
+    host = 0;
+    start_line = 0;
+    checked_idx = 0;
+    read_idx = 0;
+    write_idx = 0;
+
+    // 初始化读写缓冲区
+    memset(read_buf, '\0', READ_BUFFER_SIZE);
+    memset(write_buf, '\0', WRITE_BUFFER_SIZE);
 }
 
 void HTTP::do_request()
 {
+    modfd(kqueue_fd, connfd, EVFILT_READ, EV_DISABLE, NULL);
+    write_buffer = "do request\n";
+    modfd(kqueue_fd, connfd, EVFILT_WRITE, EV_ENABLE, write_buffer);
     printf("Do request\n");
+    //char response[2048];
+    //int fd = open("./../index.html", O_RDONLY | O_NONBLOCK);
+    //read(fd, response, 2048);
+    //send(connfd, response, 2048, 0);
 }

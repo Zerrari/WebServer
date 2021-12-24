@@ -13,7 +13,7 @@
 #include "stdlib.h"
 
 int addfd(int kqueue_fd, int fd);
-int removefd(int kqueue_fd, int fd);
+int modfd(int kqueue_fd, int fd, int EVFILT_FLAG, int flag, void* udata);
 int setnonblocking(int fd);
 
 class HTTP{
@@ -97,6 +97,7 @@ public:
 
 private:
     void init();
+    void restart();
 
     // HTTP连接的文件描述符
     int connfd;
@@ -114,6 +115,7 @@ private:
     int start_line;
     // 请求报文存储区
     char write_buf[WRITE_BUFFER_SIZE];
+    char* write_buffer;
     // 记录当前写入的位置
     int write_idx;
     // 解析报文的状态

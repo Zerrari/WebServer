@@ -13,7 +13,7 @@ template<typename T>
 class threadpool
 {
 public:
-    threadpool(int thread_number = 8, int max_requests = 10000);
+    threadpool(int thread_number = 16, int max_requests = 10000);
     ~threadpool();
     // 往请求队列中添加任务
     bool append(T* request);
